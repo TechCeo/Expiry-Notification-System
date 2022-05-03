@@ -445,6 +445,4 @@ sys.exit(app.exec_())
 
 #app1=Notification()
 
-###Product is referred to as student in the database
-###shoutout to Dexter I reused some of his code
 
