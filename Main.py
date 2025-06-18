@@ -5,7 +5,8 @@ from PyQt5.QtPrintSupport import *
 import datetime
 from datetime import date
 from datetime import datetime, timedelta
-from win10toast import ToastNotifier
+#from win10toast import ToastNotifier
+from plyer import notification
 import sys
 import sqlite3
 import time
@@ -15,7 +16,6 @@ import os
 
 class WorkerThread(QThread):
     def run(self):
-        
         try:
             self.conn = sqlite3.connect("database.db")
             self.c = self.conn.cursor()
@@ -23,58 +23,29 @@ class WorkerThread(QThread):
             row = result.fetchall()
             result2 = self.c.execute("SELECT Name from students")
             row2 = result2.fetchall()
-            #print(row)
-            #serachresult = "Exp_Date : "+str(row[4])
-            #QMessageBox.information(QMessageBox(), 'Successful', serachresult)
-            
-            
-        
-            #except Exception:
-            #   QMessageBox.warning(QMessageBox(), 'Error', 'Could not Find Product from the database.')
-            #print(serachresult)
-
 
             today = date.today()
             exp_window = (today + timedelta(10)).strftime("%d-%m-%Y")
-            # dd/mm/YY
-            #d1 = today.strftime("%d-%m-%Y")
-            #print("d1 =", d1)
-            namelist=[]
-            for i in row2:
-                row2real="".join(i)
-                namelist.append(row2real)
-                
+            namelist = ["".join(i) for i in row2]
             numeral = []
-            
-        
+
             for i in row:
                 numeral.append("a")
-                index=numeral.count("a")
-                
+                index = numeral.count("a") - 1
                 y = ''.join(i)
                 x = datetime.strptime(y, '%d-%m-%Y')
-                if int(y[6:])>int(exp_window[6:]):
-                    #print("False " + y + "is greater than" + exp_window )
-                    pass;
-                elif int(y[3:5])<int(exp_window[3:5]):
-                    
 
-                    hr=ToastNotifier()
-                    hr.show_toast('alarm',"Some Products are Near Expiry: " + namelist[index] , icon_path = "icon/notification-icon-bell-alarm2.ico", duration=5 )
-                    #print("True " + y + "is less than" + self.exp_window )print
-                    
-                    
-                
-                elif int(y[0:2])>int(exp_window[0:2]):
-                    #print("False " + y + "is greater than" + exp_window )
-                    pass;
-                else:
-                    #print("True " + y + "is less than" + exp_window )
-                    numeral.append("a")
-                    index=numeral.count("a")
-                    self.hr=ToastNotifier()
-                    self.hr.show_toast('alarm',"Some Products are Near Expiry: " + namelist[index] , icon_path = "icon/notification-icon-bell-alarm2.ico", duration=5)
-            
+                # Simple comparison logic
+                expiry_date = datetime.strptime(y, "%d-%m-%Y")
+                expiry_limit = datetime.strptime(exp_window, "%d-%m-%Y")
+                if expiry_date <= expiry_limit:
+                    notification.notify(
+                        title='Product Expiry Alert',
+                        message="Some Products are Near Expiry: " + namelist[index],
+                        # app_icon="icon/notification-icon-bell-alarm2.ico",
+                        timeout=15
+                    )
+
             self.conn.commit()
             self.c.close()
             self.conn.close()
