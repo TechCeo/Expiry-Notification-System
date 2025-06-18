@@ -1,10 +1,58 @@
-# Expiry-Notification-System
-A Desktop based Product Expiry Notification system which primarily notifies business owners about expiring products or report products close to their expiry dates, can also be used as an inventory mgt app for small scale business. User Enters product details such as Name, category, expirydate and quantity, user can add, remove, search and delete products from the database.
+# Expiry Notification System
 
--Python programming language
--PyQt5 for the GUI
--SQLite for Database
--win10toast for the Notification
+A desktop-based inventory management system that notifies small business owners of products nearing expiry. Built with Python, PyQt5, and SQLite, this tool provides a simple GUI to manage and monitor product inventory.
 
-To run; Clone the repo, run the main.py file with the icon and Database files in the folder.
-Prerequisite: Python installed, pyqt5 (pip install pyqt5), win10toast (pip install win10toast).  
+---
+
+## 📦 Features
+
+- Add, search, and delete product entries
+- Tracks product expiry dates
+- Desktop notification alerts (now powered by `plyer` for cross-platform support)
+- Simple and intuitive PyQt5 interface
+- SQLite-powered data persistence
+
+---
+
+## 🚀 Run via Docker
+
+```bash
+docker pull techceo/expiry-notifier:latest
+```
+
+---
+On Windows (VcXsrv required):
+```bash
+$env:DISPLAY="host.docker.internal:0.0"
+docker run -it --rm -e DISPLAY=$env:DISPLAY techceo/expiry-notifier
+```
+
+On Linux:
+```bash
+xhost +local:docker
+docker run -it --rm -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix techceo/expiry-notifier
+```
+
+---
+🐙 GitHub Repository
+🔗 https://github.com/TechCeo/Expiry-Notification-System
+
+🐳 Docker Hub Repository
+🔗 https://hub.docker.com/r/techceo/expiry-notifier
+
+---
+🛠 Tech Stack
+- Python 3.11
+
+- PyQt5
+
+- SQLite
+
+- Plyer (replaced win10toast for cross-platform notifications)
+
+- Docker
+---
+👤 Author
+- Yusuf Adamu (TechCeo)
+  
+---
