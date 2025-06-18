@@ -1,7 +1,5 @@
 # Expiry Notification System
 
-# 🧯 Expiry Notification System
-
 ![Docker Pulls](https://img.shields.io/docker/pulls/techceo/expiry-notifier?style=flat-square)
 ![GitHub Repo stars](https://img.shields.io/github/stars/TechCeo/Expiry-Notification-System?style=flat-square)
 ![GitHub last commit](https://img.shields.io/github/last-commit/TechCeo/Expiry-Notification-System?style=flat-square)
