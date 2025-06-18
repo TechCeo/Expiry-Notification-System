@@ -1,5 +1,13 @@
 # Expiry Notification System
 
+# 🧯 Expiry Notification System
+
+![Docker Pulls](https://img.shields.io/docker/pulls/techceo/expiry-notifier?style=flat-square)
+![GitHub Repo stars](https://img.shields.io/github/stars/TechCeo/Expiry-Notification-System?style=flat-square)
+![GitHub last commit](https://img.shields.io/github/last-commit/TechCeo/Expiry-Notification-System?style=flat-square)
+
+A desktop-based inventory management system...
+
 A desktop-based inventory management system that notifies small business owners of products nearing expiry. Built with Python, PyQt5, and SQLite, this tool provides a simple GUI to manage and monitor product inventory.
 
 ---
