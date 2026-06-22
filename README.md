@@ -8,6 +8,32 @@ A desktop-based inventory management system...
 
 A desktop-based inventory management system that notifies small business owners of products nearing expiry. Built with Python, PyQt5, and SQLite, this tool provides a simple GUI to manage and monitor product inventory.
 
+## Architecture
+
+The application is organized as a modular monolith under `src/`:
+
+- `domain/` contains typed product models and expiry business rules.
+- `services/` coordinates inventory and notification use cases.
+- `repositories/` owns product persistence operations.
+- `infrastructure/` configures SQLite and migrates the legacy `students` table.
+- `ui/` contains PyQt windows, dialogs, and the background expiry worker.
+
+`Main.py` remains the compatibility entry point. On startup, existing records are copied
+idempotently from the legacy table into the typed `products` schema; the original table
+is retained as a safety measure.
+
+Run locally with:
+
+```bash
+python Main.py
+```
+
+Run the automated tests with:
+
+```bash
+python -m unittest discover -v
+```
+
 ---
 
 ## 📦 Features
