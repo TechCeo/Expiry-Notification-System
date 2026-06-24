@@ -1,0 +1,125 @@
+name: expiry-notification-system
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-expiry_notification}
+      POSTGRES_USER: ${POSTGRES_USER:-expiry_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-expiry_dev_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-development}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-expiry_app}:${POSTGRES_PASSWORD:-expiry_dev_password}@db:5432/${POSTGRES_DB:-expiry_notification}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    environment:
+      APP_NAME: ${APP_NAME:-Expiry Notification API}
+      APP_VERSION: ${APP_VERSION:-0.1.0}
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      API_V1_PREFIX: ${API_V1_PREFIX:-/api/v1}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-expiry_app}:${POSTGRES_PASSWORD:-expiry_dev_password}@db:5432/${POSTGRES_DB:-expiry_notification}
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-5}
+      DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-10}
+      DATABASE_POOL_TIMEOUT_SECONDS: ${DATABASE_POOL_TIMEOUT_SECONDS:-30}
+      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-https://identity.example.invalid/}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-expiry-notification-api}
+      OIDC_JWKS_URL: ${OIDC_JWKS_URL:-https://identity.example.invalid/.well-known/jwks.json}
+      OIDC_ALGORITHMS: ${OIDC_ALGORITHMS:-RS256}
+      OIDC_JWKS_CACHE_SECONDS: ${OIDC_JWKS_CACHE_SECONDS:-300}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  test:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: test
+    environment:
+      APP_ENVIRONMENT: test
+      DATABASE_URL: postgresql+psycopg://expiry_test:expiry_test_password@test-db:5432/expiry_notification_test
+    command: ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider"]
+    depends_on:
+      test-migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  test-db:
+    profiles: ["test"]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: expiry_notification_test
+      POSTGRES_USER: expiry_test
+      POSTGRES_PASSWORD: expiry_test_password
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U expiry_test -d expiry_notification_test
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 3s
+    restart: "no"
+
+  test-migrate:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      APP_ENVIRONMENT: test
+      DATABASE_URL: postgresql+psycopg://expiry_test:expiry_test_password@test-db:5432/expiry_notification_test
+    depends_on:
+      test-db:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  postgres_data:

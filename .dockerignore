@@ -4,3 +4,15 @@ __pycache__/
 *.pyd
 *.db-journal
 .DS_Store
+.git/
+.github/
+.env
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+database.db
+icon/
+src/
+tests/
+README.md

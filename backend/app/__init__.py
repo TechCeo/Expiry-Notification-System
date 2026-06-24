@@ -1,0 +1,1 @@
+"""Expiry Notification System backend."""
