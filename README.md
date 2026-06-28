@@ -1,105 +1,43 @@
 # Expiry Notification System
 
-![Docker Pulls](https://img.shields.io/docker/pulls/techceo/expiry-notifier?style=flat-square)
-![GitHub Repo stars](https://img.shields.io/github/stars/TechCeo/Expiry-Notification-System?style=flat-square)
-![GitHub last commit](https://img.shields.io/github/last-commit/TechCeo/Expiry-Notification-System?style=flat-square)
+The Expiry Notification System has been migrated from a single-user PyQt/SQLite
+desktop application into a multi-user FastAPI, PostgreSQL, and React web platform.
+The browser client is now the operational path; the legacy desktop application is
+archived under `archive/legacy-pyqt/` for reference and migration history only.
 
-The Expiry Notification System is being migrated from a single-user PyQt/SQLite
-desktop application to a multi-user FastAPI and PostgreSQL service. The legacy client
-remains in `src/` during the migration, while all new server development lives in
-`backend/`.
+## Current stack
 
-## Backend foundation
-
-The first backend milestone includes:
-
-- FastAPI application with automatic OpenAPI documentation.
-- Environment-driven configuration through Pydantic Settings.
-- PostgreSQL connectivity through SQLAlchemy and Psycopg.
-- Alembic migration management with an initial baseline revision.
-- Separate liveness (`/health`) and database readiness (`/ready`) probes.
-- Docker Compose orchestration for PostgreSQL, migrations, and the API.
-- Non-root, multi-stage API image without the legacy Qt/X11 dependencies.
-
-## Inventory API
-
-Milestone 2 adds a complete PostgreSQL-backed inventory API:
-
-- Organizations own all catalog and inventory records.
-- Products represent reusable catalog definitions and organization-scoped SKUs.
-- Locations represent warehouses, stores, and storage areas.
-- Batches are the core inventory unit, tracking product, location, quantities,
-  receipt date, expiration date, lifecycle status, and notes.
-
-All collection endpoints return an envelope containing `items`, `total`, `limit`,
-and `offset`. The maximum page size is 200.
-
-| Resource | Collection route | Available filters |
-| --- | --- | --- |
-| Organizations | `/api/v1/organizations` | `name`, `limit`, `offset` |
-| Products | `/api/v1/products` | `organization_id`, `status`, `category`, `search`, pagination |
-| Locations | `/api/v1/locations` | `organization_id`, `is_active`, `name`, pagination |
-| Batches | `/api/v1/batches` | `organization_id`, `product_id`, `location_id`, `status`, `expiry_date`, `expires_from`, `expires_to`, pagination |
-
-Each collection supports `POST` and `GET`. Individual resources support `GET`,
-`PATCH`, and `DELETE` through `/{resource_id}` routes. Product and location deletion
-is rejected while inventory batches still reference the resource.
-
-## Identity, tenancy, and authorization
-
-All versioned inventory and organization endpoints require an OIDC Bearer access token.
-The API validates the token signature through the provider's JWKS endpoint and verifies
-the configured issuer, audience, expiration, subject, and asymmetric signing algorithm.
-Passwords are never accepted or stored by this application.
-
-The first valid token for an OIDC subject provisions a local user profile. An authenticated
-user may create an organization and automatically becomes its first owner. Additional users
-must authenticate once before an administrator can grant membership using their verified
-email address.
-
-| Role | Read inventory | Manage inventory | Manage members | Delete organization |
-| --- | --- | --- | --- | --- |
-| `viewer` | Yes | No | No | No |
-| `inventory_manager` | Yes | Yes | No | No |
-| `admin` | Yes | Yes | Yes | No |
-| `owner` | Yes | Yes | Yes | Yes |
-
-Identity endpoints include:
-
-- `GET /api/v1/me`
-- `GET/POST /api/v1/organizations/{organization_id}/memberships`
-- `PATCH/DELETE /api/v1/organizations/{organization_id}/memberships/{membership_id}`
-- `GET /api/v1/organizations/{organization_id}/audit-events`
-
-The API prevents removal or demotion of the final organization owner. Every inventory,
-organization, and membership mutation records the authenticated actor and affected resource
-in the same PostgreSQL transaction.
+- Backend: FastAPI, SQLAlchemy, Pydantic, Alembic, PostgreSQL
+- Frontend: React, TypeScript, Vite, React Router, TanStack Query, React Hook Form, Zod
+- Auth: OIDC Bearer tokens with Authorization Code + PKCE on the web client
+- Runtime: Docker Compose with API, migrations, PostgreSQL, and web services
 
 ## Repository layout
 
 ```text
 backend/
-├── alembic/                 # Versioned database migrations
-├── app/
-│   ├── api/routes/          # FastAPI endpoint modules
-│   ├── core/                # Environment configuration
-│   ├── db/models/           # SQLAlchemy inventory models
-│   ├── domain/              # Product and batch lifecycle values
-│   ├── repositories/        # SQLAlchemy queries and pagination
-│   ├── schemas/             # Documented Pydantic API contracts
-│   ├── services/            # Inventory rules and transaction orchestration
-│   └── main.py              # API composition root
-├── tests/                   # Backend tests
-├── alembic.ini
-├── requirements.txt
-└── requirements-dev.txt
+  alembic/                 # Versioned database migrations
+  app/
+    api/routes/            # FastAPI endpoint modules
+    cli/                   # Operational CLIs, including legacy SQLite importer
+    core/                  # Environment configuration and security helpers
+    db/models/             # SQLAlchemy models
+    domain/                # Lifecycle values and roles
+    repositories/          # SQLAlchemy query layer
+    schemas/               # Documented Pydantic API contracts
+    services/              # Business rules and authorization orchestration
+  tests/                   # Backend integration tests
 
-src/                         # Transitional legacy PyQt application
-Dockerfile                   # FastAPI production image
-docker-compose.yml           # API, migration, and PostgreSQL services
+frontend/
+  src/                     # React TypeScript web client
+  Dockerfile               # Nginx-served production build
+
+archive/legacy-pyqt/      # Archived PyQt/SQLite desktop application
+Dockerfile                # FastAPI production/test image
+docker-compose.yml        # DB, migration, API, web, and test services
 ```
 
-## Start the backend with Docker
+## Run the full application
 
 From the repository root:
 
@@ -108,56 +46,128 @@ Copy-Item .env.example .env
 docker compose up --build
 ```
 
-The development defaults also allow Compose to start without a `.env` file. Always
-replace the sample password before deploying beyond a local workstation.
+Local URLs:
 
-Once the stack is healthy:
+- Web app: http://localhost:8080
+- API docs: http://localhost:8000/docs
+- Liveness: http://localhost:8000/health
+- Readiness: http://localhost:8000/ready
 
-- API documentation: http://localhost:8000/docs
-- Liveness probe: http://localhost:8000/health
-- Readiness probe: http://localhost:8000/ready
-- Versioned API probe: http://localhost:8000/api/v1/health
-
-Stop the services while retaining PostgreSQL data:
+If your network intercepts TLS certificates during local image builds, prefer installing
+your organization/root CA. As a temporary local-only workaround:
 
 ```powershell
-docker compose down
+docker compose build --build-arg PIP_TRUSTED_HOST="pypi.org files.pythonhosted.org" --build-arg NPM_CONFIG_STRICT_SSL=false
 ```
 
-Remove services and the development database volume:
+Do not use those relaxed build settings in CI or production.
+
+## Backend API
+
+All versioned inventory endpoints require an OIDC Bearer access token. Health endpoints
+remain public. The API validates token signature, issuer, audience, expiration, subject,
+and asymmetric signing algorithm through the configured JWKS endpoint.
+
+Core resources:
+
+| Resource | Route | Notes |
+| --- | --- | --- |
+| Organizations | `/api/v1/organizations` | Tenant boundary and inventory owner |
+| Products | `/api/v1/products` | Organization-scoped catalog and SKU |
+| Locations | `/api/v1/locations` | Warehouses, shops, and storage areas |
+| Batches | `/api/v1/batches` | Core inventory unit with quantity and expiry |
+| Identity | `/api/v1/me` | Current user, memberships, and roles |
+
+Collection endpoints return `items`, `total`, `limit`, and `offset`. Batch lists support
+filters such as `organization_id`, `product_id`, `location_id`, `status`, `expiry_date`,
+`expires_from`, and `expires_to`.
+
+## Roles
+
+| Role | Read inventory | Manage inventory | Manage members | Delete organization |
+| --- | --- | --- | --- | --- |
+| `viewer` | Yes | No | No | No |
+| `inventory_manager` | Yes | Yes | No | No |
+| `admin` | Yes | Yes | Yes | No |
+| `owner` | Yes | Yes | Yes | Yes |
+
+The API prevents removal or demotion of the final organization owner. Inventory,
+organization, and membership mutations create audit events in the same PostgreSQL
+transaction.
+
+## Frontend
+
+The React web client includes:
+
+- Login and OIDC/PKCE callback handling
+- Organization selection
+- Inventory dashboard
+- Product, location, and batch workflows
+- Pagination and filtering
+- Expiring-soon, expired, and depleted inventory views
+- Responsive layouts
+- Loading, empty, validation, and error states
+- Role-aware write controls
+
+Run locally from `frontend/`:
 
 ```powershell
-docker compose down --volumes
+npm install
+npm run dev
 ```
 
-## Run the backend locally
-
-Create and activate a virtual environment, then run from `backend/`:
+Build and lint:
 
 ```powershell
-python -m pip install -r requirements-dev.txt
-alembic upgrade head
-python -m uvicorn app.main:app --reload
+npm run build
+npm run lint
 ```
 
-For local execution outside Docker, set `DATABASE_URL` to a PostgreSQL URL whose host
-is `localhost` instead of the Compose service name `db`.
+## Legacy SQLite importer
 
-Run backend tests from `backend/`:
+The importer is idempotent and supports dry-run mode, validation, duplicate prevention,
+source/destination totals, and machine-readable JSON reports.
+
+Supported legacy mappings:
+
+```text
+students.roll/mobile/sem/address -> Product + Batch
+products.id/expiry_date/quantity/remarks -> Product + Batch
+```
+
+Dry-run against the local legacy DB through Docker:
 
 ```powershell
-python -m pytest -q
+docker compose run --rm -v "${PWD}\database.db:/tmp/database.db:ro" api python -m app.cli.import_legacy_sqlite --source /tmp/database.db --source-table auto --organization-name "Legacy Import" --organization-slug legacy-import --location-name "Legacy Default Location" --location-code LEGACY --dry-run
 ```
 
-Or run them without installing Python dependencies on the host:
+Final import after testing a DB copy:
 
 ```powershell
-docker compose --profile test run --build --rm test
+docker compose run --rm -v "${PWD}\database.db:/tmp/database.db:ro" api python -m app.cli.import_legacy_sqlite --source /tmp/database.db --source-table auto --organization-name "Legacy Import" --organization-slug legacy-import --location-name "Legacy Default Location" --location-code LEGACY --report-path /tmp/legacy-import-report.json
 ```
 
-The integration suite starts a separate PostgreSQL database using temporary memory-backed
-storage, applies every Alembic migration, and exercises the API against the real database.
-Remove the disposable dependency containers after a test run with:
+If you want an existing authenticated user to own the imported organization, pass
+`--owner-email someone@example.com`; that user must have authenticated once with a
+verified OIDC email.
+
+## Tests
+
+Frontend:
+
+```powershell
+cd frontend
+npm run lint
+npm run build
+```
+
+Backend with disposable PostgreSQL:
+
+```powershell
+docker compose --profile test run --build --rm test sh -c "ruff check --no-cache app tests alembic && python -m pytest -q -p no:cacheprovider"
+```
+
+Clean up disposable test containers:
 
 ```powershell
 docker compose --profile test rm --stop --force test test-migrate test-db
@@ -174,47 +184,14 @@ alembic revision --autogenerate -m "describe the schema change"
 alembic downgrade -1
 ```
 
-To deploy the inventory schema directly through Docker Compose:
-
-```powershell
-docker compose run --rm migrate alembic upgrade head
-docker compose up -d --build api
-```
-
-The inventory schema is introduced by revision `20260623_0002`; identity, memberships,
-role constraints, and audit events are introduced by `20260623_0003`. Verify the applied
-revision with:
-
-```powershell
-docker compose exec db psql -U expiry_app -d expiry_notification -c "SELECT version_num FROM alembic_version;"
-```
-
 Application startup never calls `create_all`; deployed schema changes must pass through
 reviewable Alembic revisions.
 
-## Configuration
+## Legacy archive
 
-Copy `.env.example` to `.env` for local overrides. Relevant settings include:
+The old desktop client, PyQt dependencies, SQLite repository code, Plyer notifications,
+icons, and legacy unit tests live in `archive/legacy-pyqt/`. They are no longer part of
+the active runtime or production Docker artifacts.
 
-- `APP_NAME`, `APP_VERSION`, and `APP_ENVIRONMENT`
-- `LOG_LEVEL` and `API_V1_PREFIX`
-- `DATABASE_URL`
-- `DATABASE_POOL_SIZE`, `DATABASE_MAX_OVERFLOW`, and timeout settings
-- PostgreSQL database, user, password, and exposed port
-- `OIDC_ISSUER_URL`, `OIDC_AUDIENCE`, and `OIDC_JWKS_URL`
-- `OIDC_ALGORITHMS` and `OIDC_JWKS_CACHE_SECONDS`
-
-The `.env` file is ignored by Git. `.env.example` contains development-only examples.
-Replace the placeholder OIDC values before attempting authenticated API calls. Swagger UI's
-Authorize button accepts a Bearer access token issued for the configured API audience.
-
-## Legacy desktop application
-
-The previous PyQt client and its tests remain temporarily available:
-
-```powershell
-python Main.py
-python -m unittest discover -v
-```
-
-It will be replaced with a web client after API and data-migration parity are complete.
+`database.db` is intentionally ignored and removed from Git tracking. Keep a private copy
+only long enough to validate and complete the PostgreSQL import.

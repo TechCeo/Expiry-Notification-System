@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     app_environment: str = "development"
     log_level: str = "INFO"
     api_v1_prefix: str = "/api/v1"
+    cors_allow_origins: str = Field(
+        default="http://localhost:5173,http://localhost:8080",
+        description="Comma-separated browser origins allowed to call the API.",
+    )
 
     database_url: str = Field(
         default="postgresql+psycopg://expiry_app:expiry_dev_password@localhost:5432/expiry_notification",

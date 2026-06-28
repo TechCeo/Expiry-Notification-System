@@ -12,7 +12,10 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 database.db
+frontend/node_modules/
+frontend/dist/
 icon/
 src/
 tests/
 README.md
+archive/

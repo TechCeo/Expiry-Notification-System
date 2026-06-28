@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.error_handlers import register_error_handlers
 from app.api.router import api_v1_router, system_router
@@ -33,6 +34,17 @@ def create_app() -> FastAPI:
         version=settings.app_version,
         description="Multi-user inventory and expiry notification service.",
         lifespan=lifespan,
+    )
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            origin.strip()
+            for origin in settings.cors_allow_origins.split(",")
+            if origin.strip()
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
     application.include_router(system_router)
     application.include_router(api_v1_router, prefix=settings.api_v1_prefix)

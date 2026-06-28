@@ -26,6 +26,8 @@ services:
       context: .
       dockerfile: Dockerfile
       target: production
+      args:
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
     command: ["alembic", "upgrade", "head"]
     environment:
       APP_ENVIRONMENT: ${APP_ENVIRONMENT:-development}
@@ -40,6 +42,8 @@ services:
       context: .
       dockerfile: Dockerfile
       target: production
+      args:
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
     environment:
       APP_NAME: ${APP_NAME:-Expiry Notification API}
       APP_VERSION: ${APP_VERSION:-0.1.0}
@@ -55,6 +59,7 @@ services:
       OIDC_JWKS_URL: ${OIDC_JWKS_URL:-https://identity.example.invalid/.well-known/jwks.json}
       OIDC_ALGORITHMS: ${OIDC_ALGORITHMS:-RS256}
       OIDC_JWKS_CACHE_SECONDS: ${OIDC_JWKS_CACHE_SECONDS:-300}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:5173,http://localhost:8080}
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:
@@ -72,12 +77,35 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NPM_CONFIG_STRICT_SSL: ${NPM_CONFIG_STRICT_SSL:-true}
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api/v1}
+      VITE_AUTH_MODE: ${VITE_AUTH_MODE:-oidc}
+      VITE_OIDC_AUTHORITY: ${VITE_OIDC_AUTHORITY:-https://identity.example.invalid/}
+      VITE_OIDC_CLIENT_ID: ${VITE_OIDC_CLIENT_ID:-expiry-notification-web}
+      VITE_OIDC_REDIRECT_URI: ${VITE_OIDC_REDIRECT_URI:-http://localhost:8080/auth/callback}
+      VITE_OIDC_POST_LOGOUT_REDIRECT_URI: ${VITE_OIDC_POST_LOGOUT_REDIRECT_URI:-http://localhost:8080/}
+      VITE_OIDC_SCOPE: ${VITE_OIDC_SCOPE:-openid profile email}
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
   test:
     profiles: ["test"]
     build:
       context: .
       dockerfile: Dockerfile
       target: test
+      args:
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
     environment:
       APP_ENVIRONMENT: test
       DATABASE_URL: postgresql+psycopg://expiry_test:expiry_test_password@test-db:5432/expiry_notification_test
@@ -112,6 +140,8 @@ services:
       context: .
       dockerfile: Dockerfile
       target: production
+      args:
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
     command: ["alembic", "upgrade", "head"]
     environment:
       APP_ENVIRONMENT: test

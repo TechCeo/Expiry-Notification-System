@@ -1,7 +1,9 @@
 FROM python:3.13-slim AS builder
 
+ARG PIP_TRUSTED_HOST=""
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PIP_TRUSTED_HOST=${PIP_TRUSTED_HOST}
 
 WORKDIR /build
 COPY backend/requirements.txt ./requirements.txt
