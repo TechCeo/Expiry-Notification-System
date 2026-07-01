@@ -1,0 +1,9 @@
+Alembic migration environment for the Expiry Notification API.
+
+Create a migration from backend/ with:
+
+    alembic revision --autogenerate -m "describe change"
+
+Apply migrations with:
+
+    alembic upgrade head
