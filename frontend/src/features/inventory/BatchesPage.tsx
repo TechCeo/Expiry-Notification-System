@@ -73,10 +73,17 @@ export function BatchesPage() {
         method: "PATCH",
         body: { quantity_available: 0, status: "depleted" }
       }),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ["batches"] })
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["batches"] });
+      await queryClient.invalidateQueries({ queryKey: ["inventory-view"] });
+      await queryClient.invalidateQueries({ queryKey: ["dashboard-expiring"] });
+      await queryClient.invalidateQueries({ queryKey: ["dashboard-expired"] });
+      await queryClient.invalidateQueries({ queryKey: ["dashboard-depleted"] });
+    }
   });
 
-  const error = batches.error ?? products.error ?? locations.error ?? createBatch.error;
+  const error =
+    batches.error ?? products.error ?? locations.error ?? createBatch.error ?? markDepleted.error;
   if (batches.isLoading || products.isLoading || locations.isLoading) return <LoadingState />;
   if (error) return <ErrorState error={error} />;
 
@@ -144,6 +151,7 @@ export function BatchesPage() {
         locationMap={locationMap}
         canManageInventory={canManageInventory}
         onMarkDepleted={(batch) => markDepleted.mutate(batch)}
+        markingBatchId={markDepleted.variables?.id}
       />
     </div>
   );
@@ -154,13 +162,15 @@ export function BatchTable({
   productMap,
   locationMap,
   canManageInventory,
-  onMarkDepleted
+  onMarkDepleted,
+  markingBatchId
 }: {
   batches: Batch[];
   productMap: Map<string, string>;
   locationMap: Map<string, string>;
   canManageInventory: boolean;
   onMarkDepleted?: (batch: Batch) => void;
+  markingBatchId?: string;
 }) {
   return (
     <Card>
@@ -190,8 +200,12 @@ export function BatchTable({
                 <td>{batch.status}</td>
                 <td>
                   {canManageInventory && batch.status !== "depleted" ? (
-                    <Button variant="secondary" onClick={() => onMarkDepleted?.(batch)}>
-                      Mark depleted
+                    <Button
+                      variant="secondary"
+                      disabled={!onMarkDepleted || markingBatchId === batch.id}
+                      onClick={() => onMarkDepleted?.(batch)}
+                    >
+                      {markingBatchId === batch.id ? "Marking..." : "Mark depleted"}
                     </Button>
                   ) : null}
                 </td>

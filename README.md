@@ -9,8 +9,31 @@ archived under `archive/legacy-pyqt/` for reference and migration history only.
 
 - Backend: FastAPI, SQLAlchemy, Pydantic, Alembic, PostgreSQL
 - Frontend: React, TypeScript, Vite, React Router, TanStack Query, React Hook Form, Zod
-- Auth: OIDC Bearer tokens with Authorization Code + PKCE on the web client
-- Runtime: Docker Compose with API, migrations, PostgreSQL, and web services
+- Auth: OIDC with Authorization Code + PKCE on the web client
+- Runtime: Docker Compose with API, migrations, PostgreSQL, Keycloak, and web services
+
+## Architecture overview
+
+Local development runs as a Dockerized web platform:
+
+```text
+Browser
+  ├── http://localhost:8080  -> React/Vite web client served by Nginx
+  ├── http://localhost:8081  -> Keycloak local OIDC provider
+  └── http://localhost:8000  -> FastAPI JSON API and Swagger docs
+
+Docker network
+  web      -> static React app configured with VITE_* build-time values
+  api      -> FastAPI service validating OIDC JWTs and serving /api/v1
+  migrate  -> one-shot Alembic upgrade before the API starts
+  db       -> PostgreSQL system of record
+  keycloak -> seeded local realm, frontend client, and test user
+```
+
+The browser signs in through Keycloak using Authorization Code + PKCE. After login,
+the web client sends a Bearer token to the FastAPI API. The API validates token
+issuer, audience, expiry, and signature using Keycloak's JWKS endpoint over the
+Docker network, then reads and writes inventory data in PostgreSQL.
 
 ## Repository layout
 
@@ -34,21 +57,56 @@ frontend/
 
 archive/legacy-pyqt/      # Archived PyQt/SQLite desktop application
 Dockerfile                # FastAPI production/test image
-docker-compose.yml        # DB, migration, API, web, and test services
+keycloak/                 # Local development identity-provider realm import
+docker-compose.yml        # DB, Keycloak, migration, API, web, and test services
 ```
 
-## Run the full application
+## Prerequisites
+
+Install:
+
+- Docker Desktop with Docker Compose v2
+- Git
+- Node.js 22+ only if you want to run the frontend outside Docker
+- Python 3.13+ only if you want to run backend commands outside Docker
+
+The recommended onboarding path is Docker Compose; local Node/Python installs are
+optional for day-to-day manual testing.
+
+## Local setup
 
 From the repository root:
 
 ```powershell
 Copy-Item .env.example .env
+```
+
+On macOS/Linux:
+
+```bash
+cp .env.example .env
+```
+
+Review `.env` before starting the stack. The checked-in `.env.example` is safe for
+local development defaults, while `.env` is intentionally ignored so local secrets,
+ports, and provider settings do not get committed.
+
+Start the full application:
+
+```powershell
 docker compose up --build
+```
+
+Or run it in the background:
+
+```powershell
+docker compose up -d --build db keycloak migrate api web
 ```
 
 Local URLs:
 
 - Web app: http://localhost:8080
+- Local Keycloak: http://localhost:8081
 - API docs: http://localhost:8000/docs
 - Liveness: http://localhost:8000/health
 - Readiness: http://localhost:8000/ready
@@ -62,11 +120,88 @@ docker compose build --build-arg PIP_TRUSTED_HOST="pypi.org files.pythonhosted.o
 
 Do not use those relaxed build settings in CI or production.
 
+## Authentication flow: local login with Docker Keycloak
+
+The default local setup uses a Dockerized Keycloak identity provider so you can
+manually test the web client without configuring Google or another external provider.
+
+Seeded local credentials:
+
+| Purpose | Value |
+| --- | --- |
+| Keycloak admin URL | http://localhost:8081 |
+| Keycloak admin user | `admin` |
+| Keycloak admin password | `admin` |
+| App test user | `owner@example.com` |
+| App test password | `password` |
+| Realm | `expiry-notification` |
+| Frontend client | `expiry-notification-web` |
+
+Start or refresh the full local stack:
+
+```powershell
+docker compose up -d --build db keycloak migrate api web
+```
+
+Then test the login flow:
+
+1. Open the web client: http://localhost:8080.
+2. Click **Continue with SSO**.
+3. Keycloak redirects you to the local realm login page.
+4. Sign in with the seeded app user:
+
+   ```text
+   owner@example.com
+   password
+   ```
+
+5. After Keycloak redirects back to the app, create your first organization if one
+   does not already exist.
+6. You are now the organization owner and can manually test products, locations,
+   batches, expiring inventory, expired inventory, and depleted inventory.
+
+Optional: open the Keycloak admin console at http://localhost:8081 and sign in with
+`admin` / `admin` to inspect the seeded realm, client, and user.
+
+Local OIDC wiring:
+
+```env
+OIDC_ISSUER_URL=http://localhost:8081/realms/expiry-notification
+OIDC_AUDIENCE=expiry-notification-web
+OIDC_JWKS_URL=http://keycloak:8080/realms/expiry-notification/protocol/openid-connect/certs
+VITE_OIDC_AUTHORITY=http://localhost:8081/realms/expiry-notification
+VITE_OIDC_CLIENT_ID=expiry-notification-web
+VITE_OIDC_API_TOKEN=id_token
+```
+
+The issuer is the browser-visible Keycloak URL, while the JWKS URL uses the Docker
+network hostname so the API container can fetch signing keys.
+
+Because the web client is statically built, changes to `VITE_*` variables require a
+web image rebuild:
+
+```powershell
+docker compose up -d --build web
+```
+
+If you change `keycloak/realm-export.json` after Keycloak has already imported the realm,
+reset the Keycloak volume and start again:
+
+```powershell
+docker compose down
+docker volume rm expiry-notification-system_keycloak_data
+docker compose up -d --build db keycloak migrate api web
+```
+
 ## Backend API
 
-All versioned inventory endpoints require an OIDC Bearer access token. Health endpoints
+All versioned inventory endpoints require an OIDC Bearer token. Health endpoints
 remain public. The API validates token signature, issuer, audience, expiration, subject,
 and asymmetric signing algorithm through the configured JWKS endpoint.
+
+For Google login, the browser sends Google's `id_token` to the API. That token is a
+JWT whose audience is your Google OAuth Web client ID. For providers that issue a
+custom API access token, set `VITE_OIDC_API_TOKEN=access_token` instead.
 
 Core resources:
 
@@ -122,6 +257,50 @@ Build and lint:
 npm run build
 npm run lint
 ```
+
+## Google login setup
+
+Google is a good public login provider because many users already have an account and
+Google supports OpenID Connect. Use Docker Keycloak for local/manual development first,
+then switch these settings when you are ready to test public login.
+
+1. Create or select a project in Google Cloud Console.
+2. Configure the OAuth consent screen.
+3. Create an OAuth Client ID with application type `Web application`.
+4. Add this authorized redirect URI:
+
+   ```text
+   http://localhost:8080/auth/callback
+   ```
+
+5. Copy the generated Google client ID into `.env`.
+
+Example `.env` values:
+
+```env
+OIDC_ISSUER_URL=https://accounts.google.com
+OIDC_AUDIENCE=your-google-client-id.apps.googleusercontent.com
+OIDC_JWKS_URL=https://www.googleapis.com/oauth2/v3/certs
+OIDC_ALGORITHMS=RS256
+
+VITE_AUTH_MODE=oidc
+VITE_OIDC_API_TOKEN=id_token
+VITE_OIDC_AUTHORITY=https://accounts.google.com
+VITE_OIDC_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+VITE_OIDC_REDIRECT_URI=http://localhost:8080/auth/callback
+VITE_OIDC_POST_LOGOUT_REDIRECT_URI=http://localhost:8080/
+VITE_OIDC_SCOPE=openid profile email
+```
+
+Because the web client is statically built with Vite, rebuild the web image after
+changing any `VITE_*` value:
+
+```powershell
+docker compose up -d --build api web
+```
+
+The first successful Google sign-in auto-creates a local user profile. That user can
+then create an organization and becomes its first owner.
 
 ## Legacy SQLite importer
 

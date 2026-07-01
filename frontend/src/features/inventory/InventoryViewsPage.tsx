@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiClient } from "../../api/client";
 import { Batch, Location, Page, Product } from "../../api/generated/client";
@@ -7,6 +7,7 @@ import { ErrorState, LoadingState } from "../../shared/ui/State";
 import { BatchTable } from "./BatchesPage";
 
 export function InventoryViewsPage() {
+  const queryClient = useQueryClient();
   const { selectedOrganizationId, canManageInventory } = useOrganization();
   const today = new Date();
   const todayIso = today.toISOString().slice(0, 10);
@@ -40,11 +41,26 @@ export function InventoryViewsPage() {
   const depleted = useInventoryView("depleted", selectedOrganizationId, {
     status: "depleted"
   });
+  const markDepleted = useMutation({
+    mutationFn: (batch: Batch) =>
+      apiClient.request<Batch>(`/batches/${batch.id}`, {
+        method: "PATCH",
+        body: { quantity_available: 0, status: "depleted" }
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["inventory-view"] });
+      await queryClient.invalidateQueries({ queryKey: ["batches"] });
+      await queryClient.invalidateQueries({ queryKey: ["dashboard-expiring"] });
+      await queryClient.invalidateQueries({ queryKey: ["dashboard-expired"] });
+      await queryClient.invalidateQueries({ queryKey: ["dashboard-depleted"] });
+    }
+  });
 
   const queries = [products, locations, expiring, expired, depleted];
   if (queries.some((query) => query.isLoading)) return <LoadingState />;
   const failed = queries.find((query) => query.error);
   if (failed?.error) return <ErrorState error={failed.error} />;
+  if (markDepleted.error) return <ErrorState error={markDepleted.error} />;
 
   const productMap = new Map(products.data?.items.map((product) => [product.id, product.name]));
   const locationMap = new Map(locations.data?.items.map((location) => [location.id, location.name]));
@@ -62,6 +78,8 @@ export function InventoryViewsPage() {
           productMap={productMap}
           locationMap={locationMap}
           canManageInventory={canManageInventory}
+          onMarkDepleted={(batch) => markDepleted.mutate(batch)}
+          markingBatchId={markDepleted.variables?.id}
         />
       </section>
       <section>
@@ -71,6 +89,8 @@ export function InventoryViewsPage() {
           productMap={productMap}
           locationMap={locationMap}
           canManageInventory={canManageInventory}
+          onMarkDepleted={(batch) => markDepleted.mutate(batch)}
+          markingBatchId={markDepleted.variables?.id}
         />
       </section>
       <section>
@@ -80,6 +100,8 @@ export function InventoryViewsPage() {
           productMap={productMap}
           locationMap={locationMap}
           canManageInventory={canManageInventory}
+          onMarkDepleted={(batch) => markDepleted.mutate(batch)}
+          markingBatchId={markDepleted.variables?.id}
         />
       </section>
     </div>

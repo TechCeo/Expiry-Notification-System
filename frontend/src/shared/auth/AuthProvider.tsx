@@ -15,7 +15,7 @@ import { config } from "../../config";
 type AuthContextValue = {
   isAuthenticated: boolean;
   isLoading: boolean;
-  accessToken: string | null;
+  apiToken: string | null;
   login: () => Promise<void>;
   logout: () => Promise<void>;
   completeLogin: () => Promise<void>;
@@ -42,13 +42,25 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [devToken, setDevTokenState] = useState(
     () => window.localStorage.getItem("expiry.devToken") ?? ""
   );
-  const [isLoading, setIsLoading] = useState(false);
-
-  const accessToken = config.authMode === "dev-token" ? devToken : user?.access_token ?? null;
+  const [isLoading, setIsLoading] = useState(config.authMode === "oidc");
 
   useEffect(() => {
-    setTokenProvider(async () => accessToken);
-  }, [accessToken]);
+    if (!manager) {
+      return;
+    }
+    setIsLoading(true);
+    manager
+      .getUser()
+      .then((storedUser) => {
+        setUser(storedUser && !storedUser.expired ? storedUser : null);
+      })
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const oidcToken =
+    config.oidcApiToken === "access_token" ? user?.access_token : user?.id_token;
+  const apiToken = config.authMode === "dev-token" ? devToken : oidcToken ?? null;
+  setTokenProvider(async () => apiToken);
 
   const login = useCallback(async () => {
     if (config.authMode === "dev-token") {
@@ -84,15 +96,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const value = useMemo<AuthContextValue>(
     () => ({
-      isAuthenticated: Boolean(accessToken),
+      isAuthenticated: Boolean(apiToken),
       isLoading,
-      accessToken,
+      apiToken,
       login,
       logout,
       completeLogin,
       setDevToken
     }),
-    [accessToken, completeLogin, isLoading, login, logout, setDevToken]
+    [apiToken, completeLogin, isLoading, login, logout, setDevToken]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

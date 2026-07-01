@@ -60,7 +60,6 @@ export type Batch = {
 
 export type User = {
   id: string;
-  oidc_subject: string;
   email: string | null;
   email_verified: boolean;
   display_name: string | null;
@@ -80,7 +79,13 @@ export type Membership = {
 };
 
 export type Me = {
-  user: User;
+  id: string;
+  email: string | null;
+  email_verified: boolean;
+  display_name: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
   memberships: Membership[];
 };
 
