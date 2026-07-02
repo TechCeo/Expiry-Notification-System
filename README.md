@@ -1,6 +1,6 @@
-# Expiry Notification System
+# Inventory Lifecycle Engine
 
-The Expiry Notification System has been migrated from a single-user PyQt/SQLite
+Inventory Lifecycle Engine has been migrated from a single-user PyQt/SQLite
 desktop application into a multi-user FastAPI, PostgreSQL, and React web platform.
 The browser client is now the operational path; the legacy desktop application is
 archived under `archive/legacy-pyqt/` for reference and migration history only.
