@@ -81,15 +81,16 @@ optional for day-to-day manual testing.
 
 The active container images use the modern repository naming convention:
 
-| Component | Local/CI image |
-| --- | --- |
-| API and migration image | `techceo/inventory-lifecycle-engine-api` |
-| API test image | `techceo/inventory-lifecycle-engine-api-test` |
-| Web image | `techceo/inventory-lifecycle-engine-web` |
+| Component | Image | Registry link |
+| --- | --- | --- |
+| API and migration image | `techceo/inventory-lifecycle-engine-api` | [Docker Hub](https://hub.docker.com/r/techceo/inventory-lifecycle-engine-api) |
+| API test image | `techceo/inventory-lifecycle-engine-api-test` | [Docker Hub](https://hub.docker.com/r/techceo/inventory-lifecycle-engine-api-test) |
+| Web image | `techceo/inventory-lifecycle-engine-web` | [Docker Hub](https://hub.docker.com/r/techceo/inventory-lifecycle-engine-web) |
 
 The Compose file builds these images locally with the `:local` tag. GitHub Actions
 build verification uses the same names with the `:ci` tag and does not push images
-to a registry.
+to a registry. The Docker Hub links are the intended public registry targets if/when
+release publishing is enabled.
 
 ## Local setup with Docker Compose
 
