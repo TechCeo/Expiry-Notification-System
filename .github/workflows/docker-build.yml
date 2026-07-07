@@ -1,0 +1,82 @@
+name: Docker Build CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+  push:
+    branches:
+      - main
+      - master
+
+concurrency:
+  group: docker-build-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  docker-build:
+    name: Build ${{ matrix.name }} image
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: backend-production
+            context: .
+            file: ./Dockerfile
+            target: production
+            tags: inventory-lifecycle-engine-api:ci
+            cache-scope: backend-production
+            build-args: |
+              PIP_TRUSTED_HOST=
+
+          - name: backend-test
+            context: .
+            file: ./Dockerfile
+            target: test
+            tags: inventory-lifecycle-engine-api-test:ci
+            cache-scope: backend-test
+            build-args: |
+              PIP_TRUSTED_HOST=
+
+          - name: frontend-production
+            context: ./frontend
+            file: ./frontend/Dockerfile
+            target: production
+            tags: inventory-lifecycle-engine-web:ci
+            cache-scope: frontend-production
+            build-args: |
+              NPM_CONFIG_STRICT_SSL=true
+              VITE_API_BASE_URL=http://localhost:8000/api/v1
+              VITE_AUTH_MODE=oidc
+              VITE_OIDC_API_TOKEN=id_token
+              VITE_OIDC_AUTHORITY=https://identity.example.invalid/
+              VITE_OIDC_CLIENT_ID=expiry-notification-web
+              VITE_OIDC_REDIRECT_URI=http://localhost:8080/auth/callback
+              VITE_OIDC_POST_LOGOUT_REDIRECT_URI=http://localhost:8080/
+              VITE_OIDC_SCOPE=openid profile email
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          target: ${{ matrix.target }}
+          tags: ${{ matrix.tags }}
+          build-args: ${{ matrix.build-args }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.cache-scope }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cache-scope }}
