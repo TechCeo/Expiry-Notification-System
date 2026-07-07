@@ -31,7 +31,7 @@ jobs:
             context: .
             file: ./Dockerfile
             target: production
-            tags: inventory-lifecycle-engine-api:ci
+            tags: techceo/inventory-lifecycle-engine-api:ci
             cache-scope: backend-production
             build-args: |
               PIP_TRUSTED_HOST=
@@ -40,7 +40,7 @@ jobs:
             context: .
             file: ./Dockerfile
             target: test
-            tags: inventory-lifecycle-engine-api-test:ci
+            tags: techceo/inventory-lifecycle-engine-api-test:ci
             cache-scope: backend-test
             build-args: |
               PIP_TRUSTED_HOST=
@@ -49,7 +49,7 @@ jobs:
             context: ./frontend
             file: ./frontend/Dockerfile
             target: production
-            tags: inventory-lifecycle-engine-web:ci
+            tags: techceo/inventory-lifecycle-engine-web:ci
             cache-scope: frontend-production
             build-args: |
               NPM_CONFIG_STRICT_SSL=true

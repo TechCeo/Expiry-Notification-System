@@ -5,10 +5,10 @@
 [![Integration CI](https://github.com/TechCeo/inventory-lifecycle-engine/actions/workflows/integration.yml/badge.svg)](https://github.com/TechCeo/inventory-lifecycle-engine/actions/workflows/integration.yml)
 [![Docker Build CI](https://github.com/TechCeo/inventory-lifecycle-engine/actions/workflows/docker-build.yml/badge.svg)](https://github.com/TechCeo/inventory-lifecycle-engine/actions/workflows/docker-build.yml)
 
-Inventory Lifecycle Engine has been migrated from a single-user PyQt/SQLite
-desktop application into a multi-user FastAPI, PostgreSQL, and React web platform.
-The browser client is now the operational path; the legacy desktop application is
-archived under `archive/legacy-pyqt/` for reference and migration history only.
+Inventory Lifecycle Engine is a containerized full-stack inventory and asset lifecycle
+platform for tracking products, storage locations, stock batches, expiration windows,
+and depleted inventory. The system combines a React/Vite web client, FastAPI service
+layer, PostgreSQL persistence, Alembic migrations, and Keycloak-backed OIDC login.
 
 ## Current stack
 
@@ -23,13 +23,13 @@ Local development runs as a Dockerized web platform:
 
 ```text
 Browser
-  ├── http://localhost:8080  -> React/Vite web client served by Nginx
-  ├── http://localhost:8081  -> Keycloak local OIDC provider
-  └── http://localhost:8000  -> FastAPI JSON API and Swagger docs
+  |-- http://localhost:8080  -> React/Vite web client served by Nginx
+  |-- http://localhost:8081  -> Keycloak local OIDC provider
+  `-- http://localhost:8000  -> FastAPI JSON API and Swagger docs
 
 Docker network
-  web      -> static React app configured with VITE_* build-time values
-  api      -> FastAPI service validating OIDC JWTs and serving /api/v1
+  web      -> techceo/inventory-lifecycle-engine-web
+  api      -> techceo/inventory-lifecycle-engine-api
   migrate  -> one-shot Alembic upgrade before the API starts
   db       -> PostgreSQL system of record
   keycloak -> seeded local realm, frontend client, and test user
@@ -60,7 +60,6 @@ frontend/
   src/                     # React TypeScript web client
   Dockerfile               # Nginx-served production build
 
-archive/legacy-pyqt/      # Archived PyQt/SQLite desktop application
 Dockerfile                # FastAPI production/test image
 keycloak/                 # Local development identity-provider realm import
 docker-compose.yml        # DB, Keycloak, migration, API, web, and test services
@@ -78,7 +77,21 @@ Install:
 The recommended onboarding path is Docker Compose; local Node/Python installs are
 optional for day-to-day manual testing.
 
-## Local setup
+## Docker image names
+
+The active container images use the modern repository naming convention:
+
+| Component | Local/CI image |
+| --- | --- |
+| API and migration image | `techceo/inventory-lifecycle-engine-api` |
+| API test image | `techceo/inventory-lifecycle-engine-api-test` |
+| Web image | `techceo/inventory-lifecycle-engine-web` |
+
+The Compose file builds these images locally with the `:local` tag. GitHub Actions
+build verification uses the same names with the `:ci` tag and does not push images
+to a registry.
+
+## Local setup with Docker Compose
 
 From the repository root:
 
@@ -96,7 +109,7 @@ Review `.env` before starting the stack. The checked-in `.env.example` is safe f
 local development defaults, while `.env` is intentionally ignored so local secrets,
 ports, and provider settings do not get committed.
 
-Start the full application:
+Build and start the full application:
 
 ```powershell
 docker compose up --build
@@ -106,6 +119,12 @@ Or run it in the background:
 
 ```powershell
 docker compose up -d --build db keycloak migrate api web
+```
+
+Check container health:
+
+```powershell
+docker compose ps
 ```
 
 Local URLs:
@@ -194,7 +213,7 @@ reset the Keycloak volume and start again:
 
 ```powershell
 docker compose down
-docker volume rm expiry-notification-system_keycloak_data
+docker volume rm inventory-lifecycle-engine_keycloak_data
 docker compose up -d --build db keycloak migrate api web
 ```
 
@@ -319,7 +338,7 @@ students.roll/mobile/sem/address -> Product + Batch
 products.id/expiry_date/quantity/remarks -> Product + Batch
 ```
 
-Dry-run against the local legacy DB through Docker:
+Dry-run against a local SQLite database copy through Docker:
 
 ```powershell
 docker compose run --rm -v "${PWD}\database.db:/tmp/database.db:ro" api python -m app.cli.import_legacy_sqlite --source /tmp/database.db --source-table auto --organization-name "Legacy Import" --organization-slug legacy-import --location-name "Legacy Default Location" --location-code LEGACY --dry-run
@@ -334,6 +353,38 @@ docker compose run --rm -v "${PWD}\database.db:/tmp/database.db:ro" api python -
 If you want an existing authenticated user to own the imported organization, pass
 `--owner-email someone@example.com`; that user must have authenticated once with a
 verified OIDC email.
+
+## Build and test locally
+
+Validate the Compose file:
+
+```powershell
+docker compose --profile test config --quiet
+```
+
+Build the production API and web images:
+
+```powershell
+docker compose build api web
+```
+
+Build the test image:
+
+```powershell
+docker compose build test
+```
+
+Run the full containerized backend integration test path with disposable PostgreSQL:
+
+```powershell
+docker compose --profile test run --build --rm test
+```
+
+Clean up disposable integration-test containers and volumes:
+
+```powershell
+docker compose --profile test down --volumes --remove-orphans
+```
 
 ## Tests
 
@@ -370,12 +421,6 @@ alembic downgrade -1
 
 Application startup never calls `create_all`; deployed schema changes must pass through
 reviewable Alembic revisions.
-
-## Legacy archive
-
-The old desktop client, PyQt dependencies, SQLite repository code, Plyer notifications,
-icons, and legacy unit tests live in `archive/legacy-pyqt/`. They are no longer part of
-the active runtime or production Docker artifacts.
 
 `database.db` is intentionally ignored and removed from Git tracking. Keep a private copy
 only long enough to validate and complete the PostgreSQL import.

@@ -60,7 +60,7 @@ class ImportReport:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Import legacy PyQt/SQLite inventory into PostgreSQL."
+        description="Import legacy SQLite inventory into PostgreSQL."
     )
     parser.add_argument("--source", default="database.db", help="Path to legacy SQLite DB.")
     parser.add_argument(
