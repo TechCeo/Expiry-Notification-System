@@ -2,6 +2,7 @@
 
 [![Backend CI](https://github.com/TechCeo/inventory-lifecycle-engine/actions/workflows/backend.yml/badge.svg)](https://github.com/TechCeo/inventory-lifecycle-engine/actions/workflows/backend.yml)
 [![Frontend CI](https://github.com/TechCeo/inventory-lifecycle-engine/actions/workflows/frontend.yml/badge.svg)](https://github.com/TechCeo/inventory-lifecycle-engine/actions/workflows/frontend.yml)
+[![Integration CI](https://github.com/TechCeo/inventory-lifecycle-engine/actions/workflows/integration.yml/badge.svg)](https://github.com/TechCeo/inventory-lifecycle-engine/actions/workflows/integration.yml)
 
 Inventory Lifecycle Engine has been migrated from a single-user PyQt/SQLite
 desktop application into a multi-user FastAPI, PostgreSQL, and React web platform.
