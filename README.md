@@ -60,6 +60,131 @@ Architecture evidence:
 - The React auth provider uses `oidc-client-ts` with Authorization Code flow, PKCE
   supplied by the Keycloak client, and stores OIDC state in browser local storage.
 
+## Data model overview
+
+The PostgreSQL schema is modeled with SQLAlchemy entities under `backend/app/db/models`
+and versioned through Alembic migrations under `backend/alembic/versions`.
+
+```mermaid
+erDiagram
+  ORGANIZATIONS ||--o{ PRODUCTS : owns
+  ORGANIZATIONS ||--o{ LOCATIONS : owns
+  ORGANIZATIONS ||--o{ BATCHES : scopes
+  ORGANIZATIONS ||--o{ ORGANIZATION_MEMBERSHIPS : grants
+  USERS ||--o{ ORGANIZATION_MEMBERSHIPS : receives
+  ORGANIZATIONS o|--o{ AUDIT_EVENTS : records
+  USERS o|--o{ AUDIT_EVENTS : performs
+  PRODUCTS ||--o{ BATCHES : contains
+  LOCATIONS ||--o{ BATCHES : stores
+
+  ORGANIZATIONS {
+    uuid id PK
+    string name
+    string slug UK
+    datetime created_at
+    datetime updated_at
+  }
+
+  USERS {
+    uuid id PK
+    string oidc_subject UK
+    string email UK
+    boolean email_verified
+    string display_name
+    boolean is_active
+    datetime created_at
+    datetime updated_at
+  }
+
+  ORGANIZATION_MEMBERSHIPS {
+    uuid id PK
+    uuid organization_id FK
+    uuid user_id FK
+    string role
+    datetime created_at
+    datetime updated_at
+  }
+
+  PRODUCTS {
+    uuid id PK
+    uuid organization_id FK
+    string sku
+    string name
+    text description
+    string category
+    string status
+    jsonb metadata
+    datetime created_at
+    datetime updated_at
+  }
+
+  LOCATIONS {
+    uuid id PK
+    uuid organization_id FK
+    string name
+    string code
+    string timezone
+    text address
+    boolean is_active
+    datetime created_at
+    datetime updated_at
+  }
+
+  BATCHES {
+    uuid id PK
+    uuid organization_id FK
+    uuid product_id FK
+    uuid location_id FK
+    string batch_number
+    int quantity_received
+    int quantity_available
+    date expiry_date
+    date received_date
+    string status
+    text notes
+    datetime created_at
+    datetime updated_at
+  }
+
+  AUDIT_EVENTS {
+    uuid id PK
+    uuid organization_id FK
+    uuid actor_user_id FK
+    string action
+    string resource_type
+    uuid resource_id
+    jsonb details
+    datetime created_at
+    datetime updated_at
+  }
+```
+
+Data model evidence:
+
+- `organizations` defines a UUID primary key, unique indexed `slug`, and one-to-many
+  relationships to products, locations, batches, memberships, and audit events in
+  [`backend/app/db/models/organization.py`](backend/app/db/models/organization.py#L20).
+- `products` are tenant-scoped by `organization_id`, enforce unique `(organization_id,
+  sku)`, and restrict status to `active` or `archived` in
+  [`backend/app/db/models/product.py`](backend/app/db/models/product.py#L18).
+- `locations` are tenant-scoped by `organization_id`, enforce unique `(organization_id,
+  code)`, and expose an active-location index in
+  [`backend/app/db/models/location.py`](backend/app/db/models/location.py#L17).
+- `batches` are the core inventory unit. Each batch belongs to one organization, one
+  product, and one location, tracks received/available quantities, dates, status, and
+  notes, and includes expiry/product/location indexes in
+  [`backend/app/db/models/batch.py`](backend/app/db/models/batch.py#L20).
+- `users` are provisioned from OIDC claims using unique `oidc_subject` and optional
+  unique `email` in [`backend/app/db/models/user.py`](backend/app/db/models/user.py#L16).
+- `organization_memberships` implement user-to-organization tenancy and roles with a
+  unique `(organization_id, user_id)` constraint in
+  [`backend/app/db/models/membership.py`](backend/app/db/models/membership.py#L18).
+- `audit_events` store action/resource metadata with nullable organization and actor
+  references using `ON DELETE SET NULL` in
+  [`backend/app/db/models/audit_event.py`](backend/app/db/models/audit_event.py#L17).
+- `created_at` and `updated_at` are supplied by the shared timestamp mixin in
+  [`backend/app/db/base.py`](backend/app/db/base.py#L21).
+
 ## Repository layout
 
 ```text
