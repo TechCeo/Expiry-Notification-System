@@ -23,29 +23,23 @@ Local development runs as a Dockerized web platform:
 
 ```mermaid
 flowchart LR
-  user["User<br/>Browser"]
+  User[User Browser]
+  Web[Web Client]
+  Keycloak[Keycloak IAM]
+  API[Backend API]
+  DB[(PostgreSQL)]
+  Migrate[Alembic Migrations]
+  DockerHub[Docker Hub]
 
-  subgraph local["Local developer machine"]
-    subgraph compose["Docker Compose project: inventory-lifecycle-engine"]
-      web["Web client<br/>React + TypeScript + Vite<br/>Nginx container<br/>techceo/inventory-lifecycle-engine-web"]
-      keycloak["Keycloak IAM<br/>quay.io/keycloak/keycloak:26.2<br/>OIDC Authorization Code + PKCE"]
-      api["Backend API<br/>Python 3.13 + FastAPI<br/>SQLAlchemy + Pydantic<br/>techceo/inventory-lifecycle-engine-api"]
-      migrate["Migration job<br/>Alembic upgrade head<br/>techceo/inventory-lifecycle-engine-api"]
-      db[("PostgreSQL<br/>postgres:16-alpine<br/>Inventory system of record")]
-    end
-  end
-
-  dockerhub["Docker Hub<br/>Published images<br/>techceo/inventory-lifecycle-engine-*"]
-
-  user -->|"HTTP :8080<br/>HTML/CSS/JS"| web
-  user -->|"OIDC login/logout<br/>HTTP :8081"| keycloak
-  web -->|"HTTPS/HTTP JSON<br/>Bearer token<br/>/api/v1"| api
-  web -->|"OIDC auth code + PKCE<br/>redirect /auth/callback"| keycloak
-  api -->|"JWT validation<br/>JWKS over Docker network"| keycloak
-  api -->|"PostgreSQL protocol<br/>SQLAlchemy sessions"| db
-  migrate -->|"PostgreSQL protocol<br/>Alembic DDL"| db
-  dockerhub -.->|"docker pull / CI build tags"| web
-  dockerhub -.->|"docker pull / CI build tags"| api
+  User -->|HTTP 8080| Web
+  User -->|OIDC login| Keycloak
+  Web -->|JSON API| API
+  Web -->|OIDC callback| Keycloak
+  API -->|JWKS validation| Keycloak
+  API -->|SQL| DB
+  Migrate -->|DDL| DB
+  DockerHub -.->|images| Web
+  DockerHub -.->|images| API
 ```
 
 The browser signs in through Keycloak using Authorization Code + PKCE. After login,
