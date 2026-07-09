@@ -21,24 +21,50 @@ layer, PostgreSQL persistence, Alembic migrations, and Keycloak-backed OIDC logi
 
 Local development runs as a Dockerized web platform:
 
-```text
-Browser
-  |-- http://localhost:8080  -> React/Vite web client served by Nginx
-  |-- http://localhost:8081  -> Keycloak local OIDC provider
-  `-- http://localhost:8000  -> FastAPI JSON API and Swagger docs
+```mermaid
+flowchart LR
+  user["User<br/>Browser"]
 
-Docker network
-  web      -> techceo/inventory-lifecycle-engine-web
-  api      -> techceo/inventory-lifecycle-engine-api
-  migrate  -> one-shot Alembic upgrade before the API starts
-  db       -> PostgreSQL system of record
-  keycloak -> seeded local realm, frontend client, and test user
+  subgraph local["Local developer machine"]
+    subgraph compose["Docker Compose project: inventory-lifecycle-engine"]
+      web["Web client<br/>React + TypeScript + Vite<br/>Nginx container<br/>techceo/inventory-lifecycle-engine-web"]
+      keycloak["Keycloak IAM<br/>quay.io/keycloak/keycloak:26.2<br/>OIDC Authorization Code + PKCE"]
+      api["Backend API<br/>Python 3.13 + FastAPI<br/>SQLAlchemy + Pydantic<br/>techceo/inventory-lifecycle-engine-api"]
+      migrate["Migration job<br/>Alembic upgrade head<br/>techceo/inventory-lifecycle-engine-api"]
+      db[("PostgreSQL<br/>postgres:16-alpine<br/>Inventory system of record")]
+    end
+  end
+
+  dockerhub["Docker Hub<br/>Published images<br/>techceo/inventory-lifecycle-engine-*"]
+
+  user -->|"HTTP :8080<br/>HTML/CSS/JS"| web
+  user -->|"OIDC login/logout<br/>HTTP :8081"| keycloak
+  web -->|"HTTPS/HTTP JSON<br/>Bearer token<br/>/api/v1"| api
+  web -->|"OIDC auth code + PKCE<br/>redirect /auth/callback"| keycloak
+  api -->|"JWT validation<br/>JWKS over Docker network"| keycloak
+  api -->|"PostgreSQL protocol<br/>SQLAlchemy sessions"| db
+  migrate -->|"PostgreSQL protocol<br/>Alembic DDL"| db
+  dockerhub -.->|"docker pull / CI build tags"| web
+  dockerhub -.->|"docker pull / CI build tags"| api
 ```
 
 The browser signs in through Keycloak using Authorization Code + PKCE. After login,
 the web client sends a Bearer token to the FastAPI API. The API validates token
 issuer, audience, expiry, and signature using Keycloak's JWKS endpoint over the
 Docker network, then reads and writes inventory data in PostgreSQL.
+
+Architecture evidence:
+
+- Docker Compose defines `db`, `keycloak`, `migrate`, `api`, and `web` services and
+  the `inventory-lifecycle-engine` project name in `docker-compose.yml`.
+- The API service exposes port `8000`, depends on completed migrations and Keycloak,
+  and uses OIDC issuer/audience/JWKS settings from environment variables.
+- The web service exposes port `8080` and is configured with Vite OIDC/API build
+  arguments.
+- The backend image is a Python 3.13 multi-stage FastAPI container; the frontend image
+  is a Node 22 build stage served by Nginx.
+- The React auth provider uses `oidc-client-ts` with Authorization Code flow, PKCE
+  supplied by the Keycloak client, and stores OIDC state in browser local storage.
 
 ## Repository layout
 
