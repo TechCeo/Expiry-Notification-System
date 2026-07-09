@@ -346,6 +346,71 @@ VITE_OIDC_API_TOKEN=id_token
 The issuer is the browser-visible Keycloak URL, while the JWKS URL uses the Docker
 network hostname so the API container can fetch signing keys.
 
+Authentication and authorization sequence:
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant Web as Web Client
+  participant Keycloak as Keycloak
+  participant API as FastAPI API
+  participant DB as PostgreSQL
+
+  User->>Web: Open protected route
+  Web->>Web: Check stored OIDC user
+  alt No valid local session
+    Web->>User: Redirect to login page
+    User->>Web: Click Continue with SSO
+    Web->>Keycloak: Start authorization code flow
+    Keycloak->>User: Prompt for credentials
+    User->>Keycloak: Submit credentials
+    Keycloak->>Web: Redirect to callback with code
+    Web->>Keycloak: Complete callback and receive tokens
+    Web->>Web: Store OIDC user state
+  end
+  Web->>API: Send API request with Bearer token
+  API->>Keycloak: Fetch JWKS signing keys
+  API->>API: Validate signature issuer audience expiry subject
+  API->>DB: Find or provision user by OIDC subject
+  DB-->>API: User record and memberships
+  API->>API: Enforce organization role
+  API->>DB: Read or mutate authorized tenant data
+  DB-->>API: Query result
+  API-->>Web: JSON response
+  Web-->>User: Render authorized inventory view
+```
+
+Authentication evidence:
+
+- The React router protects inventory routes with `RequireAuth` and exposes `/login`
+  plus `/auth/callback` in [`frontend/src/router.tsx`](frontend/src/router.tsx#L14).
+- `RequireAuth` redirects unauthenticated users to `/login` in
+  [`frontend/src/shared/auth/RequireAuth.tsx`](frontend/src/shared/auth/RequireAuth.tsx#L6).
+- The login page starts SSO through `auth.login()` when `VITE_AUTH_MODE=oidc` in
+  [`frontend/src/features/auth/LoginPage.tsx`](frontend/src/features/auth/LoginPage.tsx#L24).
+- The auth provider configures `oidc-client-ts` with Authorization Code flow,
+  redirect URI, logout redirect URI, scope, and local-storage-backed OIDC state in
+  [`frontend/src/shared/auth/AuthProvider.tsx`](frontend/src/shared/auth/AuthProvider.tsx#L27).
+- The callback page completes the redirect flow with `completeLogin()` and returns the
+  user to `/dashboard` in
+  [`frontend/src/features/auth/AuthCallbackPage.tsx`](frontend/src/features/auth/AuthCallbackPage.tsx#L7).
+- The API client receives its Bearer token from the auth provider through
+  `setTokenProvider` in [`frontend/src/api/client.ts`](frontend/src/api/client.ts#L4).
+- FastAPI requires an HTTP Bearer token, verifies it, provisions or refreshes the user,
+  and rejects inactive accounts in
+  [`backend/app/api/authentication.py`](backend/app/api/authentication.py#L17).
+- JWT verification fetches JWKS signing keys and validates issuer, audience, expiry,
+  subject, and asymmetric algorithms in
+  [`backend/app/core/security.py`](backend/app/core/security.py#L26).
+- Request-scoped services receive the authenticated actor and construct
+  `AuthorizationService` in [`backend/app/api/dependencies.py`](backend/app/api/dependencies.py#L15).
+- Organization authorization is enforced through role hierarchy checks in
+  [`backend/app/services/authorization.py`](backend/app/services/authorization.py#L8).
+- Inventory operations call role checks before reading or mutating tenant data in
+  [`backend/app/services/inventory.py`](backend/app/services/inventory.py#L45).
+- Membership and audit endpoints require admin-level organization access in
+  [`backend/app/services/identity.py`](backend/app/services/identity.py#L28).
+
 Because the web client is statically built, changes to `VITE_*` variables require a
 web image rebuild:
 
