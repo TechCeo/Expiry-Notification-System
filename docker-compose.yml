@@ -119,6 +119,29 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  seed-demo:
+    profiles: ["demo"]
+    image: techceo/inventory-lifecycle-engine-api:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+      args:
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
+    command:
+      - python
+      - -m
+      - app.cli.seed_demo_data
+      - --owner-email
+      - owner@example.com
+    environment:
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-development}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-expiry_app}:${POSTGRES_PASSWORD:-expiry_dev_password}@db:5432/${POSTGRES_DB:-expiry_notification}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
   test:
     profiles: ["test"]
     image: techceo/inventory-lifecycle-engine-api-test:local

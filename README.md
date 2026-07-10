@@ -280,6 +280,23 @@ Local URLs:
 - Liveness: http://localhost:8000/health
 - Readiness: http://localhost:8000/ready
 
+Populate the local database with deterministic demo inventory:
+
+```powershell
+docker compose run --rm api python -m app.cli.seed_demo_data
+```
+
+Or use the dedicated demo profile service:
+
+```powershell
+docker compose --profile demo run --rm seed-demo
+```
+
+The seed command is idempotent. It creates two demo organizations, realistic grocery
+products, multi-location inventory, expired batches, expiring-soon batches, healthy
+stock, depleted stock, quarantined stock, and native audit events. It links the demo
+data to the seeded local Keycloak user `owner@example.com`.
+
 If your network intercepts TLS certificates during local image builds, prefer installing
 your organization/root CA. As a temporary local-only workaround:
 
@@ -419,7 +436,8 @@ docker compose up -d --build web
 ```
 
 If you change `keycloak/realm-export.json` after Keycloak has already imported the realm,
-reset the Keycloak volume and start again:
+or if your local Keycloak volume was created before the deterministic demo owner ID was
+added, reset the Keycloak volume and start again:
 
 ```powershell
 docker compose down
