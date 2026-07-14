@@ -1,0 +1,72 @@
+{
+  "realm": "expiry-notification",
+  "enabled": true,
+  "displayName": "Inventory Lifecycle Engine Demo",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "sslRequired": "external",
+  "clients": [
+    {
+      "clientId": "expiry-notification-web",
+      "name": "Inventory Lifecycle Engine Web",
+      "description": "Public portfolio demo client for the React web app.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "redirectUris": [
+        "https://inventory.yusufadamu.dev/auth/callback",
+        "http://localhost:8080/auth/callback",
+        "http://localhost:5173/auth/callback"
+      ],
+      "webOrigins": [
+        "https://inventory.yusufadamu.dev",
+        "http://localhost:8080",
+        "http://localhost:5173"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://inventory.yusufadamu.dev/*##http://localhost:8080/*##http://localhost:5173/*"
+      },
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "username": "demo@example.com",
+      "email": "demo@example.com",
+      "firstName": "Read Only",
+      "lastName": "Demo",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo-password-change-me",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

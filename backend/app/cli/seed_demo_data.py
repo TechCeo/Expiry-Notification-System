@@ -23,6 +23,8 @@ from app.services.inventory import InventoryService
 
 DEFAULT_OWNER_EMAIL = "owner@example.com"
 DEFAULT_OWNER_SUBJECT = "11111111-1111-4111-8111-111111111111"
+DEFAULT_VIEWER_EMAIL = "demo@example.com"
+DEFAULT_VIEWER_SUBJECT = "22222222-2222-4222-8222-222222222222"
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +69,7 @@ class OrganizationSeed:
 class SeedReport:
     dry_run: bool
     owner_email: str
+    viewer_email: str
     organizations_created: int = 0
     organizations_skipped: int = 0
     memberships_created: int = 0
@@ -326,6 +329,12 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_OWNER_SUBJECT,
         help="OIDC subject for the local demo owner. Matches the bundled Keycloak realm.",
     )
+    parser.add_argument("--viewer-email", default=DEFAULT_VIEWER_EMAIL)
+    parser.add_argument(
+        "--viewer-subject",
+        default=DEFAULT_VIEWER_SUBJECT,
+        help="OIDC subject for the read-only public demo user.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
@@ -335,19 +344,38 @@ def main() -> int:
     report = seed_demo_data(
         owner_email=args.owner_email,
         owner_subject=args.owner_subject,
+        viewer_email=args.viewer_email,
+        viewer_subject=args.viewer_subject,
         dry_run=args.dry_run,
     )
     print(report.to_json())
     return 0
 
 
-def seed_demo_data(*, owner_email: str, owner_subject: str, dry_run: bool) -> SeedReport:
-    report = SeedReport(dry_run=dry_run, owner_email=owner_email)
+def seed_demo_data(
+    *,
+    owner_email: str,
+    owner_subject: str,
+    viewer_email: str,
+    viewer_subject: str,
+    dry_run: bool,
+) -> SeedReport:
+    report = SeedReport(
+        dry_run=dry_run, owner_email=owner_email, viewer_email=viewer_email
+    )
     with SessionLocal() as session:
-        owner = get_or_create_owner(
+        owner = get_or_create_user(
             session,
-            owner_email=owner_email,
-            owner_subject=owner_subject,
+            email=owner_email,
+            subject=owner_subject,
+            display_name="Local Demo Owner",
+            dry_run=dry_run,
+        )
+        viewer = get_or_create_user(
+            session,
+            email=viewer_email,
+            subject=viewer_subject,
+            display_name="Read Only Demo Viewer",
             dry_run=dry_run,
         )
         identity_repository = IdentityRepository(session)
@@ -361,6 +389,7 @@ def seed_demo_data(*, owner_email: str, owner_subject: str, dry_run: bool) -> Se
                 session=session,
                 service=inventory_service,
                 actor=owner,
+                viewer=viewer,
                 seed=organization_seed,
                 report=report,
                 dry_run=dry_run,
@@ -373,34 +402,34 @@ def seed_demo_data(*, owner_email: str, owner_subject: str, dry_run: bool) -> Se
     return report
 
 
-def get_or_create_owner(
-    session: Session, *, owner_email: str, owner_subject: str, dry_run: bool
+def get_or_create_user(
+    session: Session, *, email: str, subject: str, display_name: str, dry_run: bool
 ) -> User:
     repository = IdentityRepository(session)
-    owner = repository.get_user_by_email(owner_email)
-    if owner is not None:
-        return owner
+    user = repository.get_user_by_email(email)
+    if user is not None:
+        return user
 
-    owner = repository.get_user_by_subject(owner_subject)
-    if owner is not None:
-        if owner.email is None:
-            owner.email = owner_email
-            owner.email_verified = True
-            owner.display_name = owner.display_name or "Local Demo Owner"
+    user = repository.get_user_by_subject(subject)
+    if user is not None:
+        if user.email is None:
+            user.email = email
+            user.email_verified = True
+            user.display_name = user.display_name or display_name
             if not dry_run:
-                repository.flush(owner)
-        return owner
+                repository.flush(user)
+        return user
 
-    owner = User(
-        oidc_subject=owner_subject,
-        email=owner_email,
+    user = User(
+        oidc_subject=subject,
+        email=email,
         email_verified=True,
-        display_name="Local Demo Owner",
+        display_name=display_name,
     )
-    session.add(owner)
+    session.add(user)
     session.flush()
-    session.refresh(owner)
-    return owner
+    session.refresh(user)
+    return user
 
 
 def seed_organization(
@@ -408,6 +437,7 @@ def seed_organization(
     session: Session,
     service: InventoryService,
     actor: User,
+    viewer: User,
     seed: OrganizationSeed,
     report: SeedReport,
     dry_run: bool,
@@ -420,17 +450,34 @@ def seed_organization(
         report.organizations_created += 1
     else:
         report.organizations_skipped += 1
-        ensure_owner_membership(session, organization, actor, report, dry_run)
+        ensure_membership(
+            session,
+            organization,
+            actor,
+            OrganizationRole.OWNER,
+            report,
+            dry_run,
+        )
+
+    ensure_membership(
+        session,
+        organization,
+        viewer,
+        OrganizationRole.VIEWER,
+        report,
+        dry_run,
+    )
 
     locations = seed_locations(session, service, organization, seed.locations, report)
     products = seed_products(session, service, organization, seed.products, report)
     seed_batches(session, service, organization, locations, products, seed.batches, report)
 
 
-def ensure_owner_membership(
+def ensure_membership(
     session: Session,
     organization: Organization,
     actor: User,
+    role: OrganizationRole,
     report: SeedReport,
     dry_run: bool,
 ) -> None:
@@ -444,7 +491,7 @@ def ensure_owner_membership(
         OrganizationMembership(
             organization_id=organization.id,
             user_id=actor.id,
-            role=OrganizationRole.OWNER.value,
+            role=role.value,
         )
     )
     session.flush()
@@ -455,7 +502,7 @@ def ensure_owner_membership(
             action="membership.seeded",
             resource_type="membership",
             resource_id=None,
-            details={"role": OrganizationRole.OWNER.value, "user_id": str(actor.id)},
+            details={"role": role.value, "user_id": str(actor.id)},
         )
 
 

@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     app_environment: str = "development"
     log_level: str = "INFO"
     api_v1_prefix: str = "/api/v1"
+    demo_read_only: bool = Field(
+        default=False,
+        description="Block mutating API requests for public portfolio demo deployments.",
+    )
     cors_allow_origins: str = Field(
         default="http://localhost:5173,http://localhost:8080",
         description="Comma-separated browser origins allowed to call the API.",

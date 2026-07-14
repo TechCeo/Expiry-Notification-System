@@ -1,0 +1,62 @@
+services:
+  - type: web
+    runtime: docker
+    name: inventory-lifecycle-engine-api
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    preDeployCommand: alembic upgrade head
+    envVars:
+      - key: APP_NAME
+        value: Inventory Lifecycle Engine API
+      - key: APP_VERSION
+        value: 0.1.0
+      - key: APP_ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: API_V1_PREFIX
+        value: /api/v1
+      - key: DEMO_READ_ONLY
+        value: "true"
+      - key: CORS_ALLOW_ORIGINS
+        value: https://inventory.yusufadamu.dev,https://www.yusufadamu.dev
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_POOL_SIZE
+        value: "5"
+      - key: DATABASE_MAX_OVERFLOW
+        value: "10"
+      - key: DATABASE_POOL_TIMEOUT_SECONDS
+        value: "30"
+      - key: OIDC_ISSUER_URL
+        sync: false
+      - key: OIDC_AUDIENCE
+        value: expiry-notification-web
+      - key: OIDC_JWKS_URL
+        sync: false
+      - key: OIDC_ALGORITHMS
+        value: RS256
+      - key: OIDC_JWKS_CACHE_SECONDS
+        value: "300"
+
+  - type: web
+    runtime: docker
+    name: inventory-lifecycle-engine-keycloak
+    dockerfilePath: ./keycloak/Dockerfile.render
+    dockerContext: .
+    envVars:
+      - key: KC_HOSTNAME
+        sync: false
+      - key: KC_BOOTSTRAP_ADMIN_USERNAME
+        sync: false
+      - key: KC_BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
+      - key: KC_DB_URL
+        sync: false
+      - key: KC_DB_USERNAME
+        sync: false
+      - key: KC_DB_PASSWORD
+        sync: false
+      - key: JAVA_OPTS_KC_HEAP
+        value: -XX:MaxRAMPercentage=65 -XX:InitialRAMPercentage=35

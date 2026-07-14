@@ -306,6 +306,76 @@ docker compose build --build-arg PIP_TRUSTED_HOST="pypi.org files.pythonhosted.o
 
 Do not use those relaxed build settings in CI or production.
 
+## Hosted demo deployment
+
+Recommended portfolio demo topology:
+
+```text
+inventory.yusufadamu.dev          Vercel React/Vite frontend
+inventory-lifecycle-engine-api    Render FastAPI web service
+inventory-lifecycle-engine-keycloak Render Keycloak OIDC service
+Neon PostgreSQL                   Managed app and Keycloak databases
+```
+
+The repository includes a Render blueprint in [`render.yaml`](render.yaml), a
+Render-compatible Keycloak image in [`keycloak/Dockerfile.render`](keycloak/Dockerfile.render),
+and a production demo realm in [`keycloak/realm-production.json`](keycloak/realm-production.json).
+
+Frontend environment variables for Vercel:
+
+```env
+VITE_API_BASE_URL=https://inventory-lifecycle-engine-api.onrender.com/api/v1
+VITE_AUTH_MODE=oidc
+VITE_OIDC_API_TOKEN=id_token
+VITE_OIDC_AUTHORITY=https://inventory-lifecycle-engine-keycloak.onrender.com/realms/expiry-notification
+VITE_OIDC_CLIENT_ID=expiry-notification-web
+VITE_OIDC_REDIRECT_URI=https://inventory.yusufadamu.dev/auth/callback
+VITE_OIDC_POST_LOGOUT_REDIRECT_URI=https://inventory.yusufadamu.dev/
+VITE_OIDC_SCOPE=openid profile email
+```
+
+Backend environment variables for Render:
+
+```env
+APP_ENVIRONMENT=production
+DEMO_READ_ONLY=true
+DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST/DB?sslmode=require
+CORS_ALLOW_ORIGINS=https://inventory.yusufadamu.dev,https://www.yusufadamu.dev
+OIDC_ISSUER_URL=https://inventory-lifecycle-engine-keycloak.onrender.com/realms/expiry-notification
+OIDC_AUDIENCE=expiry-notification-web
+OIDC_JWKS_URL=https://inventory-lifecycle-engine-keycloak.onrender.com/realms/expiry-notification/protocol/openid-connect/certs
+OIDC_ALGORITHMS=RS256
+```
+
+Keycloak environment variables for Render:
+
+```env
+KC_HOSTNAME=https://inventory-lifecycle-engine-keycloak.onrender.com
+KC_BOOTSTRAP_ADMIN_USERNAME=<secure-admin-user>
+KC_BOOTSTRAP_ADMIN_PASSWORD=<secure-admin-password>
+KC_DB_URL=jdbc:postgresql://HOST/keycloak?sslmode=require
+KC_DB_USERNAME=<neon-user>
+KC_DB_PASSWORD=<neon-password>
+```
+
+After the API deploys and migrations run, seed the public demo data from a Render shell
+or one-off job:
+
+```bash
+python -m app.cli.seed_demo_data
+```
+
+The production realm includes a read-only demo identity:
+
+```text
+demo@example.com
+demo-password-change-me
+```
+
+Change that password in Keycloak before publishing the live demo link. The backend also
+supports `DEMO_READ_ONLY=true`, which blocks mutating API methods for the public demo
+even if a client attempts to bypass role-aware frontend controls.
+
 ## Authentication flow: local login with Docker Keycloak
 
 The default local setup uses a Dockerized Keycloak identity provider so you can

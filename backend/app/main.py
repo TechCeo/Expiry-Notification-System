@@ -4,6 +4,8 @@ from collections.abc import AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from app.api.error_handlers import register_error_handlers
 from app.api.router import api_v1_router, system_router
@@ -35,6 +37,25 @@ def create_app() -> FastAPI:
         description="Multi-user inventory and expiry notification service.",
         lifespan=lifespan,
     )
+
+    @application.middleware("http")
+    async def enforce_demo_read_only(request: Request, call_next):
+        if (
+            settings.demo_read_only
+            and request.url.path.startswith(settings.api_v1_prefix)
+            and request.method in {"POST", "PUT", "PATCH", "DELETE"}
+        ):
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "detail": (
+                        "This public portfolio demo is read-only. "
+                        "Clone the repository to run a writable local instance."
+                    )
+                },
+            )
+        return await call_next(request)
+
     application.add_middleware(
         CORSMiddleware,
         allow_origins=[
