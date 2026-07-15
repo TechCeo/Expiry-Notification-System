@@ -19,6 +19,14 @@ services:
         value: /api/v1
       - key: DEMO_READ_ONLY
         value: "true"
+      - key: RUN_MIGRATIONS_ON_STARTUP
+        value: "true"
+      - key: SEED_DEMO_ON_STARTUP
+        value: "true"
+      - key: DEMO_OWNER_EMAIL
+        value: owner@example.com
+      - key: DEMO_VIEWER_EMAIL
+        value: demo@example.com
       - key: CORS_ALLOW_ORIGINS
         value: https://inventory.yusufadamu.dev,https://www.yusufadamu.dev
       - key: DATABASE_URL

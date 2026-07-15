@@ -28,6 +28,7 @@ RUN python -m pip install --no-cache-dir --no-index --find-links=/wheels \
 COPY --chown=app:app backend/alembic.ini ./alembic.ini
 COPY --chown=app:app backend/alembic ./alembic
 COPY --chown=app:app backend/app ./app
+COPY --chown=app:app --chmod=755 backend/scripts/start-api.sh ./start-api.sh
 
 USER app
 EXPOSE 8000
@@ -35,7 +36,7 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD ["python", "-c", "import os, urllib.request; urllib.request.urlopen(f\"http://127.0.0.1:{os.environ.get('PORT', '8000')}/health\", timeout=2)"]
 
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["./start-api.sh"]
 
 FROM runtime AS test
 
