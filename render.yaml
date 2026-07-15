@@ -58,5 +58,3 @@ services:
         sync: false
       - key: KC_DB_PASSWORD
         sync: false
-      - key: JAVA_OPTS_KC_HEAP
-        value: -XX:MaxRAMPercentage=65 -XX:InitialRAMPercentage=35

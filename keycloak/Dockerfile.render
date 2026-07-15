@@ -1,6 +1,7 @@
 FROM quay.io/keycloak/keycloak:26.2 AS builder
 
 ENV KC_DB=postgres \
+    KC_CACHE=local \
     KC_HEALTH_ENABLED=true \
     KC_METRICS_ENABLED=true
 
@@ -14,6 +15,7 @@ COPY --chown=keycloak:keycloak keycloak/realm-production.json /opt/keycloak/data
 COPY --chown=keycloak:keycloak --chmod=755 keycloak/render-entrypoint.sh /opt/keycloak/render-entrypoint.sh
 
 ENV KC_DB=postgres \
+    KC_CACHE=local \
     KC_HEALTH_ENABLED=true \
     KC_METRICS_ENABLED=true
 
